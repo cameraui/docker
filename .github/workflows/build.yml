@@ -96,7 +96,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}
 
       - name: Attest build provenance
-        if: steps.mode.outputs.push == 'true'
+        if: steps.mode.outputs.push == 'true' && github.event.repository.visibility == 'public'
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.IMAGE }}
