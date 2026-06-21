@@ -1,0 +1,14 @@
+# AMD Mesa VA-API + OpenCL (and optional ROCm) overlay.
+#   docker compose -f docker-compose.yml -f docker-compose.amd.yml up -d
+name: cameraui
+
+services:
+  cameraui:
+    image: ghcr.io/cameraui/camera.ui:amd
+    devices:
+      - /dev/dri:/dev/dri
+      # ROCm compute (only if your plugins need it):
+      # - /dev/kfd:/dev/kfd
+    group_add:
+      - video
+      - render

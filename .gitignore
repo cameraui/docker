@@ -1,0 +1,5 @@
+.env
+.npmrc
+data/
+volume/
+docker-compose.override.yml

@@ -1,0 +1,90 @@
+# =============================================================================
+# camera.ui — default deployment (CPU flavor)
+#
+#   docker compose up -d
+#
+# Host networking is strongly recommended: camera.ui relies on mDNS/Bonjour
+# (HomeKit pairing, ONVIF discovery) and WebRTC, both of which need the host
+# network to work reliably.
+#
+# For hardware acceleration, layer one of the overlay files on top, e.g.:
+#   docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d
+# =============================================================================
+name: cameraui
+
+services:
+  cameraui:
+    image: ghcr.io/cameraui/camera.ui:latest
+    container_name: cameraui
+    restart: unless-stopped
+    network_mode: host
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # If your host's DNS can't resolve the npm registry (the server installs on
+    # first boot), uncomment to use public resolvers:
+    # dns:
+    #   - 1.1.1.1
+    #   - 8.8.8.8
+
+    environment:
+      - TZ=Europe/Berlin
+      # Run avahi-daemon inside the container for mDNS. Set to "false" if your
+      # host already runs avahi (port 5353 conflict) and bind-mount the host
+      # sockets instead — see the commented volumes below.
+      - CAMERAUI_DOCKER_AVAHI=true
+      # Store NVR recordings on a separate disk/share: uncomment and point it at a
+      # mount from the volumes section below (overrides the in-UI storage path).
+      # - CAMERAUI_PLUGIN_NVR_STORAGE_PATH=/recordings
+
+    volumes:
+      # Persistent data: config, database, tokens, recordings, TLS certs.
+      # camera.ui stores everything under /data/volume.
+      - cameraui-data:/data
+      # NVR recordings on a separate disk (bind) or network share (the nvr volume
+      # below). Pair with CAMERAUI_PLUGIN_NVR_STORAGE_PATH=/recordings above.
+      # - /mnt/recordings:/recordings
+      # - nvr:/recordings
+      # Prefer to inspect the files on the host? Use a bind mount instead:
+      # - ./data:/data
+      #
+      # Use the HOST's avahi daemon (set CAMERAUI_DOCKER_AVAHI=false above):
+      # - /var/run/dbus:/var/run/dbus
+      # - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
+
+    # Pass through hardware. Uncomment what your host has AND use the matching
+    # image flavor / overlay file:
+    # devices:
+    #   - /dev/dri:/dev/dri          # Intel / AMD VA-API + OpenCL
+    #   - /dev/bus/usb:/dev/bus/usb  # Coral USB TPU, Zigbee/Zwave sticks
+    #   - /dev/kfd:/dev/kfd          # AMD ROCm compute
+
+    # If you do NOT use host networking, publish the ports explicitly instead
+    # (and remove network_mode: host above):
+    # ports:
+    #   - "3443:3443/tcp"  # HTTPS UI
+    #   - "2000:2000/tcp"
+    #   - "2001:2001/tcp"
+    #   - "2002:2002/tcp"
+    #   - "2003:2003/tcp"
+    #   - "2004:2004/tcp"
+    #   - "2004:2004/udp"
+
+volumes:
+  cameraui-data:
+  # NVR recordings on a CIFS/NFS network share — uncomment one, plus the
+  # "- nvr:/recordings" mount and CAMERAUI_PLUGIN_NVR_STORAGE_PATH above.
+  # nvr:
+  #   driver_opts:
+  #     type: cifs
+  #     o: "username=USER,password=PASS,vers=3.0,uid=1000,gid=1000"
+  #     device: "//NAS/share/recordings"
+  # nvr:
+  #   driver_opts:
+  #     type: nfs
+  #     o: "addr=NAS_IP,nolock,soft,rw"
+  #     device: ":/export/recordings"

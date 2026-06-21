@@ -1,0 +1,104 @@
+name: Build & Push Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      push:
+        description: Push images to GHCR
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # provenance attestation
+  attestations: write
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/cameraui/camera.ui
+
+jobs:
+  build:
+    name: ${{ matrix.flavor }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: cpu
+            base: ubuntu:24.04
+            platforms: linux/amd64,linux/arm64
+          - flavor: intel
+            base: ubuntu:24.04
+            platforms: linux/amd64
+          - flavor: nvidia
+            base: nvidia/cuda:12.6.2-runtime-ubuntu24.04
+            platforms: linux/amd64
+          - flavor: amd
+            base: ubuntu:24.04
+            platforms: linux/amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      # QEMU only needed for the cpu flavor's linux/arm64 emulation.
+      - uses: docker/setup-qemu-action@v3
+        if: contains(matrix.platforms, 'arm64')
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Decide whether to push
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.push }}" = "true" ]; then
+            echo "push=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compute tags
+        id: tags
+        run: |
+          if [ "${{ matrix.flavor }}" = "cpu" ]; then
+            echo "tags=${IMAGE}:latest,${IMAGE}:cpu" >> "$GITHUB_OUTPUT"
+          else
+            echo "tags=${IMAGE}:${{ matrix.flavor }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Login to GHCR
+        if: steps.mode.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build${{ steps.mode.outputs.push == 'true' && ' & push' || '' }}
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ matrix.platforms }}
+          build-args: |
+            BASE_IMAGE=${{ matrix.base }}
+            FLAVOR=${{ matrix.flavor }}
+          tags: ${{ steps.tags.outputs.tags }}
+          push: ${{ steps.mode.outputs.push }}
+          provenance: ${{ steps.mode.outputs.push }}
+          sbom: ${{ steps.mode.outputs.push }}
+          cache-from: type=gha,scope=${{ matrix.flavor }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.flavor }}
+
+      - name: Attest build provenance
+        if: steps.mode.outputs.push == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true

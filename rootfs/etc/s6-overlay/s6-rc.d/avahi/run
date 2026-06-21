@@ -1,0 +1,13 @@
+#!/command/with-contenv bash
+if [[ "${CAMERAUI_DOCKER_AVAHI}" != "true" ]]; then
+    echo "[avahi] CAMERAUI_DOCKER_AVAHI != true — avahi disabled"
+    exec sleep infinity
+fi
+
+until [ -e /var/run/dbus/system_bus_socket ]; do
+    echo "[avahi] waiting for dbus..."
+    sleep 1
+done
+
+echo "[avahi] starting avahi-daemon"
+exec avahi-daemon --no-chroot -f /etc/avahi/avahi-daemon.conf

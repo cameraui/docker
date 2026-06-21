@@ -1,0 +1,12 @@
+# Intel Quick Sync / VA-API + OpenCL overlay.
+#   docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d
+name: cameraui
+
+services:
+  cameraui:
+    image: ghcr.io/cameraui/camera.ui:intel
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+      - render
