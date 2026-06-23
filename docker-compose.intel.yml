@@ -7,6 +7,3 @@ services:
     image: ghcr.io/cameraui/camera.ui:intel
     devices:
       - /dev/dri:/dev/dri
-    group_add:
-      - video
-      - render

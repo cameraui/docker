@@ -20,7 +20,7 @@ cd "$(dirname "$0")"
 IMAGE="${IMAGE:-ghcr.io/cameraui/camera.ui}"
 TAG="${TAG:-latest}"
 PUSH="${PUSH:-0}"
-NVIDIA_BASE="${NVIDIA_BASE:-nvidia/cuda:12.6.2-runtime-ubuntu24.04}"
+NVIDIA_BASE="${NVIDIA_BASE:-nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04}"
 
 # flavor -> base image
 declare -A BASE=(

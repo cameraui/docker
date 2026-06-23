@@ -43,7 +43,7 @@ jobs:
             base: ubuntu:24.04
             platforms: linux/amd64
           - flavor: nvidia
-            base: nvidia/cuda:12.6.2-runtime-ubuntu24.04
+            base: nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04
             platforms: linux/amd64
           - flavor: amd
             base: ubuntu:24.04

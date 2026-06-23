@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
 # camera.ui — one Dockerfile, four flavors (build-args FLAVOR + BASE_IMAGE):
-#   cpu     ubuntu:24.04                            (amd64, arm64)
-#   intel   ubuntu:24.04                            (amd64)
-#   nvidia  nvidia/cuda:12.6.2-runtime-ubuntu24.04  (amd64)
-#   amd     ubuntu:24.04                            (amd64)
+#   cpu     ubuntu:24.04                                    (amd64, arm64)
+#   intel   ubuntu:24.04                                    (amd64)
+#   nvidia  nvidia/cuda:12.6.2-cudnn-runtime-ubuntu24.04    (amd64)
+#   amd     ubuntu:24.04                                    (amd64)
 
 ARG BASE_IMAGE=ubuntu:24.04
 FROM ${BASE_IMAGE}

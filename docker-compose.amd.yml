@@ -9,6 +9,3 @@ services:
       - /dev/dri:/dev/dri
       # ROCm compute (only if your plugins need it):
       # - /dev/kfd:/dev/kfd
-    group_add:
-      - video
-      - render
