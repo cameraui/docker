@@ -7,6 +7,10 @@ on:
         description: Push images to GHCR
         type: boolean
         default: false
+      launcher_version:
+        description: camera.ui3 launcher version
+        type: string
+        default: latest
   push:
     tags:
       - "v*"
@@ -88,6 +92,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ matrix.base }}
             FLAVOR=${{ matrix.flavor }}
+            CAMERA_UI_VERSION=${{ inputs.launcher_version || 'latest' }}
           tags: ${{ steps.tags.outputs.tags }}
           push: ${{ steps.mode.outputs.push }}
           provenance: ${{ steps.mode.outputs.push }}

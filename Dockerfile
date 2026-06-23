@@ -54,9 +54,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     INTEL_GPU_REPO="${INTEL_GPU_REPO}" \
     bash "/opt/build/scripts/install-hwaccel-${FLAVOR}.sh"
 
-# 3) launcher (public camera.ui3; installs @camera.ui/server at runtime)
+# 3) launcher (public camera.ui3; installs @camera.ui/server at runtime).
+ARG CAMERA_UI_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g --omit=dev camera.ui3 \
+    npm install -g --omit=dev "camera.ui3@${CAMERA_UI_VERSION}" \
     && node -v && npm -v
 
 # 4) s6 services + avahi config
@@ -66,9 +67,6 @@ RUN find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name up \) -exec chmod
     && rm -rf /opt/build
 
 ENV FLAVOR=${FLAVOR}
-
-# persistent data (config, db, recordings, certs)
-VOLUME ["/data"]
 
 # UI + go2rtc ports (informational; host networking recommended)
 EXPOSE 3443/tcp 2000/tcp 2001/tcp 2002/tcp 2003/tcp 2004/tcp 2004/udp
