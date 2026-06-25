@@ -52,6 +52,12 @@ extra_build_args=()
 [ -n "${KISAK_MESA:-}" ]         && extra_build_args+=(--build-arg "KISAK_MESA=${KISAK_MESA}")
 [ -n "${INTEL_GPU_REPO:-}" ]     && extra_build_args+=(--build-arg "INTEL_GPU_REPO=${INTEL_GPU_REPO}")
 
+if [ -n "${CAMERA_UI_VERSION:-}" ]; then
+    extra_build_args+=(--build-arg "CAMERA_UI_VERSION=${CAMERA_UI_VERSION}")
+else
+    extra_build_args+=(--build-arg "CAMERAUI_CACHE_BUST=$(date +%s)")
+fi
+
 for flavor in "${flavors[@]}"; do
     base="${BASE[$flavor]:-}"
     [ -z "$base" ] && { echo "unknown flavor: $flavor" >&2; exit 1; }

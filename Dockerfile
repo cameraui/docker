@@ -56,8 +56,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # 3) launcher (public camera.ui3; installs @camera.ui/server at runtime).
 ARG CAMERA_UI_VERSION=latest
+ARG CAMERAUI_CACHE_BUST=
 RUN --mount=type=cache,target=/root/.npm \
-    npm install -g --omit=dev "camera.ui3@${CAMERA_UI_VERSION}" \
+    echo "launcher build ${CAMERAUI_CACHE_BUST}: camera.ui3@${CAMERA_UI_VERSION}" \
+    && npm install -g --omit=dev "camera.ui3@${CAMERA_UI_VERSION}" \
     && node -v && npm -v
 
 # 4) s6 services + avahi config

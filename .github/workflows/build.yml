@@ -93,6 +93,7 @@ jobs:
             BASE_IMAGE=${{ matrix.base }}
             FLAVOR=${{ matrix.flavor }}
             CAMERA_UI_VERSION=${{ inputs.launcher_version || 'latest' }}
+            CAMERAUI_CACHE_BUST=${{ github.run_id }}-${{ github.run_attempt }}
           tags: ${{ steps.tags.outputs.tags }}
           push: ${{ steps.mode.outputs.push }}
           provenance: ${{ steps.mode.outputs.push }}
