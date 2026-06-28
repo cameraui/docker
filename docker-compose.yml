@@ -37,6 +37,10 @@ services:
       # host already runs avahi (port 5353 conflict) and bind-mount the host
       # sockets instead — see the commented volumes below.
       - CAMERAUI_DOCKER_AVAHI=true
+      # Plugins installed automatically on first boot (comma-separated package
+      # names, latest version). Defaults to the camera.ui NVR plugin; uncomment
+      # to add others, or set empty to install nothing.
+      # - CAMERA_UI_DEFAULT_PLUGINS=@camera.ui/camera-ui-nvr
       # Store NVR recordings on a separate disk/share: uncomment and point it at a
       # mount from the volumes section below (overrides the in-UI storage path).
       # - CAMERAUI_PLUGIN_NVR_STORAGE_PATH=/recordings
