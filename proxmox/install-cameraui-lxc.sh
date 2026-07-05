@@ -25,8 +25,6 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 FLAVOR="${FLAVOR:-cpu}"
 IMAGE="${IMAGE:-ghcr.io/cameraui/camera.ui}"
 GPU_PASSTHROUGH="${GPU_PASSTHROUGH:-$([ "$FLAVOR" = cpu ] && echo 0 || echo 1)}"
-# optional read-only npm token, passed through to the container
-CAMERAUI_NPM_TOKEN="${CAMERAUI_NPM_TOKEN:-}"
 
 command -v pct >/dev/null || { echo "This script must run on a Proxmox VE host." >&2; exit 1; }
 
@@ -98,7 +96,6 @@ services:
     environment:
       - TZ=Europe/Berlin
       - CAMERAUI_DOCKER_AVAHI=true
-      - CAMERAUI_NPM_TOKEN=${CAMERAUI_NPM_TOKEN}
     volumes:
       - cameraui-data:/data
 $([ "$GPU_PASSTHROUGH" = 1 ] && printf '    devices:\n      - /dev/dri:/dev/dri\n')

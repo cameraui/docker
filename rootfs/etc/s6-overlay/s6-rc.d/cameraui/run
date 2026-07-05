@@ -1,13 +1,4 @@
 #!/command/with-contenv bash
-NPM_TOKEN="${CAMERAUI_NPM_TOKEN:-${NPM_TOKEN:-}}"
-
-if [ -n "${NPM_TOKEN}" ]; then
-    umask 077
-    : > /root/.npmrc
-    echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" >> /root/.npmrc
-    echo "[cameraui] npm auth configured for @camera.ui scope"
-fi
-
 echo "[cameraui] starting (home: ${CAMERA_UI_HOME_PATH})"
 cd /root
 ulimit -c 0
