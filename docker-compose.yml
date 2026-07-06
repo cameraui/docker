@@ -70,6 +70,10 @@ services:
     #   - /dev/hailo0:/dev/hailo0    # Hailo-8/8L (host needs the hailo_pci driver)
     #   - /dev/apex_0:/dev/apex_0    # Coral PCIe/M.2 TPU (host needs the gasket driver)
     #   - /dev/bus/usb:/dev/bus/usb  # Coral USB TPU, Zigbee/Zwave sticks
+    #   Raspberry Pi media engine (V4L2 hardware decode):
+    #   - /dev/video10:/dev/video10
+    #   - /dev/video11:/dev/video11
+    #   - /dev/video12:/dev/video12
 
     # If you do NOT use host networking, publish the ports explicitly instead
     # (and remove network_mode: host above):
