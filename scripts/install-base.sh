@@ -41,6 +41,26 @@ apt-get install -y --no-install-recommends nodejs
 # allow pip installs into plugin venvs (PEP-668)
 rm -f /usr/lib/python3*/EXTERNALLY-MANAGED || true
 
+# --- Coral Edge TPU runtime (libedgetpu) --------------------------------------
+# The coral plugin dlopens libedgetpu.so.1 for TPU inference and silently falls
+# back to CPU without it. Tiny lib, flavor-independent — the TPU only needs its
+# device passed at runtime (PCIe: /dev/apex_0, USB: /dev/bus/usb).
+# NOT Google's frozen v16.0 (coral-edgetpu-stable): its delegate loads, but
+# SEGFAULTS on invoke with modern TFLite runtimes (ai-edge-litert 2.x). 
+# feranick's rebuild against current TF works; 
+# keep its TF version roughly in sync with the ai-edge-litert pin in
+# the coral plugin. -std = standard clock; -max runs hotter.
+LIBEDGETPU_TAG="16.0TF2.19.1-1"
+LIBEDGETPU_VERSION="16.0tf2.19.1-1"
+case "${TARGETARCH}" in
+    arm) LIBEDGETPU_ARCH=armhf ;;
+    *)   LIBEDGETPU_ARCH="${TARGETARCH}" ;;
+esac
+curl -fsSL -o /tmp/libedgetpu.deb \
+    "https://github.com/feranick/libedgetpu/releases/download/${LIBEDGETPU_TAG}/libedgetpu1-std_${LIBEDGETPU_VERSION}.ubuntu24.04_${LIBEDGETPU_ARCH}.deb"
+apt-get install -y --no-install-recommends /tmp/libedgetpu.deb
+rm -f /tmp/libedgetpu.deb
+
 # --- s6-overlay -------------------------------------------------------------
 case "${TARGETARCH}" in
     amd64) S6_ARCH=x86_64  ;;

@@ -44,5 +44,24 @@ for pkg in libvpl2 libmfxgen1 libmfx1 libmfx-gen1.2; do
         || echo "   - ${pkg} (skipped, not available)"
 done
 
+# --- Intel NPU (Core Ultra) user-space driver ---------------------------------
+# OpenVINO's NPU plugin dlopens libze_loader -> libze_intel_vpu; neither ships
+# with the openvino pip wheel, so they must live in the image. The kernel driver
+# (intel_vpu) + firmware stay on the host — pass /dev/accel at runtime.
+if [ "$(uname -m)" = "x86_64" ]; then
+    echo "==> intel: NPU user-space driver (Level Zero + UMD)"
+    LEVEL_ZERO_VERSION=1.24.2
+    NPU_VERSION=1.23.0
+    NPU_VERSION_DATE=20250827-17270089246
+
+    mkdir -p /tmp/npu && cd /tmp/npu
+    curl -fsSLO "https://github.com/oneapi-src/level-zero/releases/download/v${LEVEL_ZERO_VERSION}/level-zero_${LEVEL_ZERO_VERSION}+u24.04_amd64.deb"
+    curl -fsSLO "https://github.com/intel/linux-npu-driver/releases/download/v${NPU_VERSION}/linux-npu-driver-v${NPU_VERSION}.${NPU_VERSION_DATE}-ubuntu2404.tar.gz"
+    tar xzf "linux-npu-driver-v${NPU_VERSION}.${NPU_VERSION_DATE}-ubuntu2404.tar.gz"
+    rm -f ./*fw-npu*.deb "linux-npu-driver-v${NPU_VERSION}.${NPU_VERSION_DATE}-ubuntu2404.tar.gz" # firmware is host-only
+    apt-get install -y --no-install-recommends libtbb12 ./*.deb
+    cd / && rm -rf /tmp/npu
+fi
+
 rm -rf /tmp/* /var/tmp/*
 echo "==> intel hwaccel done"

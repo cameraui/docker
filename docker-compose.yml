@@ -61,11 +61,15 @@ services:
       # - /var/run/avahi-daemon/socket:/var/run/avahi-daemon/socket
 
     # Pass through hardware. Uncomment what your host has AND use the matching
-    # image flavor / overlay file:
+    # image flavor / overlay file. AI accelerators (Coral, Hailo, NPU) work with
+    # ANY flavor — they only need their device node (+ host driver, see docs):
     # devices:
-    #   - /dev/dri:/dev/dri          # Intel / AMD VA-API + OpenCL
-    #   - /dev/bus/usb:/dev/bus/usb  # Coral USB TPU, Zigbee/Zwave sticks
+    #   - /dev/dri:/dev/dri          # Intel / AMD GPU (VA-API, OpenCL, Vulkan)
     #   - /dev/kfd:/dev/kfd          # AMD ROCm compute
+    #   - /dev/accel:/dev/accel      # Intel NPU (Core Ultra, OpenVINO)
+    #   - /dev/hailo0:/dev/hailo0    # Hailo-8/8L (host needs the hailo_pci driver)
+    #   - /dev/apex_0:/dev/apex_0    # Coral PCIe/M.2 TPU (host needs the gasket driver)
+    #   - /dev/bus/usb:/dev/bus/usb  # Coral USB TPU, Zigbee/Zwave sticks
 
     # If you do NOT use host networking, publish the ports explicitly instead
     # (and remove network_mode: host above):

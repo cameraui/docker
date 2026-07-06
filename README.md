@@ -22,6 +22,21 @@ First boot installs the server and comes up after a few minutes — follow it wi
 
 Pick the flavor for your machine via its compose override (`docker-compose.{intel,nvidia,amd}.yml`).
 
+## Hardware acceleration & AI accelerators
+
+AI accelerators (Coral, Hailo, Intel NPU) work with **any** flavor — they only need their device node passed through (see the commented `devices:` section in `docker-compose.yml`) plus a host driver.
+
+To check what your host is missing (NVIDIA Container Toolkit, Hailo kernel driver, device nodes):
+
+```bash
+sudo ./scripts/host/cameraui-host.sh check     # read-only diagnosis
+sudo ./scripts/host/cameraui-host.sh nvidia    # install the NVIDIA Container Toolkit
+sudo ./scripts/host/cameraui-host.sh hailo     # build + install the Hailo PCIe driver
+sudo ./scripts/host/cameraui-host.sh coral     # install the gasket driver (PCIe/M.2 Coral)
+```
+
+On boot the container logs which devices actually arrived: `[setup] accelerator devices: ...` — if a device shows `✗` there but exists on the host, it is missing from your compose `devices:` list.
+
 ## Networking
 
 Host networking (the compose default) is recommended — camera.ui uses it for mDNS/Bonjour (HomeKit pairing, ONVIF discovery) and WebRTC live view.
