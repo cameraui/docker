@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Create an LXC on a Proxmox host and run the camera.ui Docker image in it.
 # Run on the Proxmox host (uses pct/pveam). Tunables (env):
-#   CTID       container id            (default: next free id)
-#   HOSTNAME   container hostname      (default: cameraui)
-#   CORES      vCPUs                   (default: 4)
-#   RAM_MB     memory in MB            (default: 4096)
-#   DISK_GB    rootfs size in GB       (default: 16)
-#   BRIDGE     network bridge          (default: vmbr0)
-#   STORAGE    rootfs storage          (default: local-lvm)
-#   TEMPLATE_STORAGE  template store   (default: local)
-#   FLAVOR     cpu|intel|nvidia|amd    (default: cpu)
-#   IMAGE      image repo              (default: ghcr.io/cameraui/camera.ui)
-#   GPU_PASSTHROUGH  1 to bind /dev/dri (default: 1 when FLAVOR!=cpu)
+#   CTID              container id            (default: next free id)
+#   CT_HOSTNAME       container hostname      (default: cameraui)
+#   CORES             vCPUs                   (default: 4)
+#   RAM_MB            memory in MB            (default: 4096)
+#   DISK_GB           rootfs size in GB       (default: 16)
+#   BRIDGE            network bridge          (default: vmbr0)
+#   STORAGE           rootfs storage          (default: local-lvm)
+#   TEMPLATE_STORAGE  template store           (default: local)
+#   FLAVOR            cpu|intel|nvidia|amd    (default: cpu)
+#   IMAGE             image repo              (default: ghcr.io/cameraui/camera.ui)
+#   GPU_PASSTHROUGH   1 to bind /dev/dri      (default: 1 when FLAVOR!=cpu)
 set -euo pipefail
 
 CTID="${CTID:-$(pvesh get /cluster/nextid)}"
-HOSTNAME="${HOSTNAME:-cameraui}"
+CT_HOSTNAME="${CT_HOSTNAME:-cameraui}"
 CORES="${CORES:-4}"
 RAM_MB="${RAM_MB:-4096}"
 DISK_GB="${DISK_GB:-16}"
@@ -35,29 +35,31 @@ TEMPLATE="$(pveam available --section system | awk '/ubuntu-24.04-standard/ {pri
 [ -z "$TEMPLATE" ] && { echo "no ubuntu-24.04 template found via pveam" >&2; exit 1; }
 if ! pveam list "$TEMPLATE_STORAGE" | grep -q "$TEMPLATE"; then
     pveam download "$TEMPLATE_STORAGE" "$TEMPLATE"
+    # pveam download can fail without a non-zero exit (e.g. DNS errors) — verify.
+    pveam list "$TEMPLATE_STORAGE" | grep -q "$TEMPLATE" \
+        || { echo "template download failed: ${TEMPLATE}" >&2; exit 1; }
 fi
 
 # --- create the container ----------------------------------------------------
-# Privileged + nesting so Docker can run and /dev/dri can be passed through.
-# For an unprivileged container drop `-unprivileged 0` and remove the GPU bind.
-echo "==> creating LXC ${CTID} (${HOSTNAME})"
+# Unprivileged + nesting: Docker needs nesting, and on PVE 9 a *privileged* LXC
+# can no longer load Docker's AppArmor profile (apparmor_parser: access denied),
+# while unprivileged + nesting works. Verified on PVE 9.2.
+echo "==> creating LXC ${CTID} (${CT_HOSTNAME})"
 pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
-    --hostname "$HOSTNAME" \
+    --hostname "$CT_HOSTNAME" \
     --cores "$CORES" \
     --memory "$RAM_MB" \
     --rootfs "${STORAGE}:${DISK_GB}" \
     --net0 "name=eth0,bridge=${BRIDGE},ip=dhcp" \
     --features "nesting=1,keyctl=1" \
-    --unprivileged 0 \
+    --unprivileged 1 \
     --onboot 1
 
-# GPU passthrough (Intel/AMD VA-API). NVIDIA needs extra host driver setup.
+# GPU passthrough (Intel/AMD VA-API) via pct device passthrough — works for
+# unprivileged containers (PVE >= 8.2). NVIDIA needs extra host driver setup.
 if [ "$GPU_PASSTHROUGH" = "1" ]; then
     echo "==> adding /dev/dri passthrough"
-    {
-        echo "lxc.cgroup2.devices.allow: c 226:* rwm"
-        echo "lxc.mount.entry: /dev/dri dev/dri none bind,optional,create=dir"
-    } >> "/etc/pve/lxc/${CTID}.conf"
+    pct set "$CTID" --dev0 "path=/dev/dri/renderD128,mode=0666"
 fi
 
 pct start "$CTID"
