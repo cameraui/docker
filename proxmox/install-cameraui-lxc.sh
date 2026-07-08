@@ -7,7 +7,7 @@
 #   RAM_MB            memory in MB            (default: 4096)
 #   DISK_GB           rootfs size in GB       (default: 16)
 #   BRIDGE            network bridge          (default: vmbr0)
-#   STORAGE           rootfs storage          (default: local-lvm)
+#   STORAGE           rootfs storage          (default: auto-detect)
 #   TEMPLATE_STORAGE  template store           (default: local)
 #   FLAVOR            cpu|intel|nvidia|amd    (default: cpu)
 #   IMAGE             image repo              (default: ghcr.io/cameraui/camera.ui)
@@ -20,13 +20,41 @@ CORES="${CORES:-4}"
 RAM_MB="${RAM_MB:-4096}"
 DISK_GB="${DISK_GB:-16}"
 BRIDGE="${BRIDGE:-vmbr0}"
-STORAGE="${STORAGE:-local-lvm}"
+STORAGE="${STORAGE:-}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 FLAVOR="${FLAVOR:-cpu}"
 IMAGE="${IMAGE:-ghcr.io/cameraui/camera.ui}"
 GPU_PASSTHROUGH="${GPU_PASSTHROUGH:-$([ "$FLAVOR" = cpu ] && echo 0 || echo 1)}"
 
 command -v pct >/dev/null || { echo "This script must run on a Proxmox VE host." >&2; exit 1; }
+
+# --- resolve a rootfs-capable storage ----------------------------------------
+# `local-lvm` is the PVE default on LVM-thin installs but is absent on ZFS
+# installs (there it's `local-zfs`) and custom layouts, where
+# `pct create --rootfs local-lvm:...` fails with "storage 'local-lvm' does not
+# exist". Resolve against storages that actually support a container rootfs
+# (content type rootdir) and are active, instead of assuming a name.
+rootdir_storages() {
+    pvesm status --content rootdir 2>/dev/null | awk 'NR>1 && $3=="active" {print $1}'
+}
+if [ -n "$STORAGE" ]; then
+    rootdir_storages | grep -qx "$STORAGE" || {
+        echo "storage '$STORAGE' does not exist or cannot hold a container rootfs." >&2
+        echo "rootfs-capable storages: $(rootdir_storages | paste -sd' ' -)" >&2
+        exit 1
+    }
+else
+    for candidate in local-lvm local-zfs local; do
+        if rootdir_storages | grep -qx "$candidate"; then STORAGE="$candidate"; break; fi
+    done
+    [ -z "$STORAGE" ] && STORAGE="$(rootdir_storages | head -1)"
+    [ -z "$STORAGE" ] && {
+        echo "no active storage supports a container rootfs (content type 'rootdir')." >&2
+        echo "Add or enable one under Datacenter > Storage, or pass STORAGE=<name>." >&2
+        exit 1
+    }
+    echo "==> using rootfs storage '$STORAGE'"
+fi
 
 # --- ensure an Ubuntu 24.04 template is available ----------------------------
 echo "==> ensuring Ubuntu 24.04 LXC template"
@@ -112,3 +140,10 @@ echo ""
 echo "==> camera.ui is starting in LXC ${CTID}"
 echo "    First boot downloads the server — give it a few minutes, then open:"
 echo "    https://${IP:-<container-ip>}:3443"
+echo ""
+echo "    Recordings default to the container volume. For a dedicated disk/NAS,"
+echo "    bind-mount it and set the NVR storage path to it. A FUSE mount"
+echo "    (mergerfs/rclone) on the host must be mounted BEFORE the container"
+echo "    starts and shared into it, or the container sees an empty mountpoint on"
+echo "    the root disk. Verify inside the container with:  df -h <storage-path>"
+echo "    Storage guide: https://docs.cameraui.com/install/proxmox"
