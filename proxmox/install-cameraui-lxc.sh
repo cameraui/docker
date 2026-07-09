@@ -9,9 +9,10 @@
 #   BRIDGE            network bridge          (default: vmbr0)
 #   STORAGE           rootfs storage          (default: auto-detect)
 #   TEMPLATE_STORAGE  template store           (default: local)
-#   FLAVOR            cpu|intel|nvidia|amd    (default: cpu)
+#   FLAVOR            cpu|intel|amd           (default: cpu)
 #   IMAGE             image repo              (default: ghcr.io/cameraui/camera.ui)
 #   GPU_PASSTHROUGH   1 to bind /dev/dri      (default: 1 when FLAVOR!=cpu)
+#   TZ                container timezone      (default: the host's timezone)
 set -euo pipefail
 
 CTID="${CTID:-$(pvesh get /cluster/nextid)}"
@@ -25,8 +26,21 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 FLAVOR="${FLAVOR:-cpu}"
 IMAGE="${IMAGE:-ghcr.io/cameraui/camera.ui}"
 GPU_PASSTHROUGH="${GPU_PASSTHROUGH:-$([ "$FLAVOR" = cpu ] && echo 0 || echo 1)}"
+TZ="${TZ:-$(cat /etc/timezone 2>/dev/null || echo UTC)}"
 
 command -v pct >/dev/null || { echo "This script must run on a Proxmox VE host." >&2; exit 1; }
+
+case "$FLAVOR" in
+    cpu|intel|amd) ;;
+    nvidia)
+        echo "FLAVOR=nvidia is not supported in an LXC (the host driver and the container's" >&2
+        echo "user-space libraries would have to stay in version lockstep). Use a VM with" >&2
+        echo "PCIe passthrough instead: https://docs.cameraui.com/install/proxmox" >&2
+        exit 1 ;;
+    *)
+        echo "unknown FLAVOR '${FLAVOR}' (expected cpu, intel or amd)" >&2
+        exit 1 ;;
+esac
 
 # --- resolve a rootfs-capable storage ----------------------------------------
 # `local-lvm` is the PVE default on LVM-thin installs but is absent on ZFS
@@ -92,7 +106,15 @@ fi
 
 pct start "$CTID"
 echo "==> waiting for network..."
-for _ in $(seq 1 30); do pct exec "$CTID" -- bash -lc 'getent hosts deb.debian.org >/dev/null 2>&1' && break; sleep 2; done
+NET_OK=0
+for _ in $(seq 1 30); do
+    if pct exec "$CTID" -- bash -lc 'getent hosts download.docker.com >/dev/null 2>&1'; then NET_OK=1; break; fi
+    sleep 2
+done
+[ "$NET_OK" = 1 ] || {
+    echo "container ${CTID} has no network/DNS after 60s — check DHCP on bridge '${BRIDGE}'." >&2
+    exit 1
+}
 
 # --- install Docker + camera.ui ---------------------------------------------
 echo "==> installing Docker inside the container"
@@ -124,7 +146,7 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - TZ=Europe/Berlin
+      - TZ=${TZ}
       - CAMERAUI_DOCKER_AVAHI=true
     volumes:
       - cameraui-data:/data

@@ -1,6 +1,6 @@
 # camera.ui on Proxmox VE
 
-Two ways to run camera.ui on Proxmox VE.
+Two ways to run camera.ui on Proxmox VE. Full guide: [docs.cameraui.com/install/proxmox](https://docs.cameraui.com/install/proxmox)
 
 ## Docker inside an LXC (recommended — reuses this image)
 
@@ -10,9 +10,25 @@ Run the helper **on the Proxmox host**:
 bash install-cameraui-lxc.sh
 ```
 
-It creates an Ubuntu 24.04 container, installs Docker + Compose, drops in the camera.ui compose file and starts it. Optional env tunables at the top of the script: `CTID`, `HOSTNAME`, `CORES`, `RAM_MB`, `DISK_GB`, `BRIDGE`, `STORAGE`, `FLAVOR`.
+It downloads an Ubuntu 24.04 template, creates an **unprivileged** container with nesting (required for Docker; on current Proxmox releases a privileged LXC can no longer load Docker's AppArmor profile), installs Docker + Compose inside it, drops in the camera.ui compose file and starts it.
 
-- The container is **privileged** so it can pass through `/dev/dri` (hardware transcode) and nest Docker. Make it unprivileged if you don't need GPU — see the script comments.
+Env tunables (see the script header):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `CTID` | next free ID | container ID |
+| `CT_HOSTNAME` | `cameraui` | container hostname |
+| `CORES` / `RAM_MB` / `DISK_GB` | `4` / `4096` / `16` | container resources |
+| `BRIDGE` | `vmbr0` | network bridge (IP via DHCP) |
+| `STORAGE` | auto-detect | rootfs storage (first active storage that can hold a container rootfs) |
+| `TEMPLATE_STORAGE` | `local` | where the LXC template is stored |
+| `FLAVOR` | `cpu` | `cpu`, `intel` or `amd` — picks the image flavor |
+| `IMAGE` | `ghcr.io/cameraui/camera.ui` | image repo |
+| `GPU_PASSTHROUGH` | `1` when flavor ≠ cpu | pass `/dev/dri` into the container |
+| `TZ` | host timezone | container timezone |
+
+- GPU passthrough (`/dev/dri`, Intel/AMD VA-API) works in the unprivileged container via Proxmox device passthrough — no privileged mode needed.
+- For **NVIDIA** use a VM with PCIe passthrough instead of an LXC (the script rejects `FLAVOR=nvidia`).
 - mDNS/avahi and WebRTC need the LXC on a **bridged** network (default `vmbr0`), not NAT.
 
 ## Bare-metal inside an LXC (no Docker)
