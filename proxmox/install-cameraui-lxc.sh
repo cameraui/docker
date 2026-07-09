@@ -42,6 +42,16 @@ case "$FLAVOR" in
         exit 1 ;;
 esac
 
+# An LXC shares the host's GPU driver. A missing /dev/dri usually means the GPU
+# is bound to vfio-pci or its driver blacklisted from an earlier VM-passthrough
+# setup — fail here with a hint instead of a cryptic pct error later.
+if [ "$GPU_PASSTHROUGH" = "1" ] && [ ! -e /dev/dri/renderD128 ]; then
+    echo "GPU passthrough requested but /dev/dri/renderD128 does not exist on this host." >&2
+    echo "If the GPU was configured for VM passthrough (vfio-pci binding, blacklisted" >&2
+    echo "i915/amdgpu), revert that first — or run with GPU_PASSTHROUGH=0." >&2
+    exit 1
+fi
+
 # --- resolve a rootfs-capable storage ----------------------------------------
 # `local-lvm` is the PVE default on LVM-thin installs but is absent on ZFS
 # installs (there it's `local-zfs`) and custom layouts, where
@@ -97,11 +107,15 @@ pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
     --unprivileged 1 \
     --onboot 1
 
-# GPU passthrough (Intel/AMD VA-API) via pct device passthrough — works for
-# unprivileged containers (PVE >= 8.2). NVIDIA needs extra host driver setup.
+# GPU passthrough (Intel/AMD VA-API/OpenCL) via pct device passthrough — works
+# for unprivileged containers (PVE >= 8.2). renderD128 covers VA-API and
+# OpenCL; card0 goes along for software that falls back to the card node.
 if [ "$GPU_PASSTHROUGH" = "1" ]; then
     echo "==> adding /dev/dri passthrough"
     pct set "$CTID" --dev0 "path=/dev/dri/renderD128,mode=0666"
+    if [ -e /dev/dri/card0 ]; then
+        pct set "$CTID" --dev1 "path=/dev/dri/card0,mode=0666"
+    fi
 fi
 
 pct start "$CTID"

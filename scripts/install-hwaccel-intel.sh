@@ -44,6 +44,28 @@ for pkg in libvpl2 libmfxgen1 libmfx1 libmfx-gen1.2; do
         || echo "   - ${pkg} (skipped, not available)"
 done
 
+# --- legacy OpenCL runtime for Gen8-Gen11 iGPUs (Broadwell..Comet Lake) -------
+# NEO >= 24.39 dropped pre-Xe GPUs, so the intel-opencl-icd above (25.x) exposes
+# no OpenCL device on e.g. a UHD 630 and OpenVINO silently falls back to CPU.
+# Intel ships co-installable legacy1 builds only as GitHub debs (no apt package
+# for noble). The 24.35 legacy branch also contains the kernel >= 6.8 fix
+# without which Gen9 devices disappear from OpenCL on current Proxmox/Ubuntu
+# kernels. Both ICDs register with the loader; each claims only its platforms.
+if [ "$(uname -m)" = "x86_64" ]; then
+    echo "==> intel: legacy OpenCL runtime (Gen8-Gen11, e.g. UHD 6xx)"
+    NEO_LEGACY_VERSION=24.35.30872.36
+    LZ_LEGACY_VERSION=1.5.30872.36
+    IGC_LEGACY_VERSION=1.0.17537.24
+
+    mkdir -p /tmp/neo-legacy && cd /tmp/neo-legacy
+    curl -fsSLO "https://github.com/intel/compute-runtime/releases/download/${NEO_LEGACY_VERSION}/intel-opencl-icd-legacy1_${NEO_LEGACY_VERSION}_amd64.deb"
+    curl -fsSLO "https://github.com/intel/compute-runtime/releases/download/${NEO_LEGACY_VERSION}/intel-level-zero-gpu-legacy1_${LZ_LEGACY_VERSION}_amd64.deb"
+    curl -fsSLO "https://github.com/intel/intel-graphics-compiler/releases/download/igc-${IGC_LEGACY_VERSION}/intel-igc-core_${IGC_LEGACY_VERSION}_amd64.deb"
+    curl -fsSLO "https://github.com/intel/intel-graphics-compiler/releases/download/igc-${IGC_LEGACY_VERSION}/intel-igc-opencl_${IGC_LEGACY_VERSION}_amd64.deb"
+    apt-get install -y --no-install-recommends ./*.deb
+    cd / && rm -rf /tmp/neo-legacy
+fi
+
 # --- Intel NPU (Core Ultra) user-space driver ---------------------------------
 # OpenVINO's NPU plugin dlopens libze_loader -> libze_intel_vpu; neither ships
 # with the openvino pip wheel, so they must live in the image. The kernel driver
