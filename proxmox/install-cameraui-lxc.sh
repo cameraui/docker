@@ -9,9 +9,9 @@
 #   BRIDGE            network bridge          (default: vmbr0)
 #   STORAGE           rootfs storage          (default: auto-detect)
 #   TEMPLATE_STORAGE  template store           (default: local)
-#   FLAVOR            cpu|intel|amd           (default: cpu)
+#   FLAVOR            cpu|intel|amd|nvidia    (default: cpu; nvidia is EXPERIMENTAL)
 #   IMAGE             image repo              (default: ghcr.io/cameraui/camera.ui)
-#   GPU_PASSTHROUGH   1 to bind /dev/dri      (default: 1 when FLAVOR!=cpu)
+#   GPU_PASSTHROUGH   1 to pass GPU devices   (default: 1 when FLAVOR!=cpu)
 #   TZ                container timezone      (default: the host's timezone)
 set -euo pipefail
 
@@ -33,23 +33,52 @@ command -v pct >/dev/null || { echo "This script must run on a Proxmox VE host."
 case "$FLAVOR" in
     cpu|intel|amd) ;;
     nvidia)
-        echo "FLAVOR=nvidia is not supported in an LXC (the host driver and the container's" >&2
-        echo "user-space libraries would have to stay in version lockstep). Use a VM with" >&2
-        echo "PCIe passthrough instead: https://docs.cameraui.com/install/proxmox" >&2
-        exit 1 ;;
+        echo "==> FLAVOR=nvidia in an LXC is EXPERIMENTAL."
+        echo "    The container's NVIDIA user space must match the host driver version."
+        echo "    This script installs it and adds a boot-time sync service that re-installs"
+        echo "    the matching version after host driver updates (best effort, needs the"
+        echo "    installer to exist on download.nvidia.com). The recommended path is still"
+        echo "    a VM with PCIe passthrough: https://docs.cameraui.com/install/proxmox"
+        ;;
     *)
-        echo "unknown FLAVOR '${FLAVOR}' (expected cpu, intel or amd)" >&2
+        echo "unknown FLAVOR '${FLAVOR}' (expected cpu, intel, amd or nvidia)" >&2
         exit 1 ;;
 esac
 
-# An LXC shares the host's GPU driver. A missing /dev/dri usually means the GPU
-# is bound to vfio-pci or its driver blacklisted from an earlier VM-passthrough
-# setup — fail here with a hint instead of a cryptic pct error later.
-if [ "$GPU_PASSTHROUGH" = "1" ] && [ ! -e /dev/dri/renderD128 ]; then
-    echo "GPU passthrough requested but /dev/dri/renderD128 does not exist on this host." >&2
-    echo "If the GPU was configured for VM passthrough (vfio-pci binding, blacklisted" >&2
-    echo "i915/amdgpu), revert that first — or run with GPU_PASSTHROUGH=0." >&2
-    exit 1
+# An LXC shares the host's GPU driver — verify the host side before creating
+# anything. Missing device nodes usually mean the GPU is bound to vfio-pci or
+# its driver blacklisted from an earlier VM-passthrough setup.
+if [ "$GPU_PASSTHROUGH" = "1" ]; then
+    if [ "$FLAVOR" = "nvidia" ]; then
+        NVIDIA_DRIVER_VERSION="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)"
+        [ -n "$NVIDIA_DRIVER_VERSION" ] || {
+            echo "FLAVOR=nvidia needs a working NVIDIA driver on the Proxmox host first" >&2
+            echo "(.run installer with --dkms plus pve-headers; nvidia-smi must work)." >&2
+            exit 1
+        }
+        # nvidia-uvm only appears after first CUDA use — load it so it can be passed
+        if [ ! -e /dev/nvidia-uvm ]; then
+            modprobe nvidia-uvm 2>/dev/null || true
+            nvidia-modprobe -u -c0 2>/dev/null || true
+        fi
+        for node in /dev/nvidia0 /dev/nvidiactl /dev/nvidia-uvm; do
+            [ -e "$node" ] || { echo "missing ${node} on the host — driver not fully initialized." >&2; exit 1; }
+        done
+        # The container gets the same driver version from NVIDIA's archive; without
+        # that installer the user space cannot be matched to the host.
+        NVIDIA_RUN_URL="https://download.nvidia.com/XFree86/Linux-x86_64/${NVIDIA_DRIVER_VERSION}/NVIDIA-Linux-x86_64-${NVIDIA_DRIVER_VERSION}.run"
+        curl -fsIL -o /dev/null "$NVIDIA_RUN_URL" || {
+            echo "host driver ${NVIDIA_DRIVER_VERSION} has no installer on download.nvidia.com:" >&2
+            echo "  ${NVIDIA_RUN_URL}" >&2
+            echo "Install a host driver version that exists there, or use a VM instead." >&2
+            exit 1
+        }
+    elif [ ! -e /dev/dri/renderD128 ]; then
+        echo "GPU passthrough requested but /dev/dri/renderD128 does not exist on this host." >&2
+        echo "If the GPU was configured for VM passthrough (vfio-pci binding, blacklisted" >&2
+        echo "i915/amdgpu), revert that first — or run with GPU_PASSTHROUGH=0." >&2
+        exit 1
+    fi
 fi
 
 # --- resolve a rootfs-capable storage ----------------------------------------
@@ -107,14 +136,26 @@ pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
     --unprivileged 1 \
     --onboot 1
 
-# GPU passthrough (Intel/AMD VA-API/OpenCL) via pct device passthrough — works
-# for unprivileged containers (PVE >= 8.2). renderD128 covers VA-API and
-# OpenCL; card0 goes along for software that falls back to the card node.
+# GPU passthrough via pct device passthrough — works for unprivileged
+# containers (PVE >= 8.2). Intel/AMD: renderD128 covers VA-API and OpenCL,
+# card0 goes along for software that falls back to the card node. NVIDIA:
+# every /dev/nvidia* node incl. the caps nodes newer drivers require.
 if [ "$GPU_PASSTHROUGH" = "1" ]; then
-    echo "==> adding /dev/dri passthrough"
-    pct set "$CTID" --dev0 "path=/dev/dri/renderD128,mode=0666"
-    if [ -e /dev/dri/card0 ]; then
-        pct set "$CTID" --dev1 "path=/dev/dri/card0,mode=0666"
+    DEV_IDX=0
+    add_dev() {
+        pct set "$CTID" --dev${DEV_IDX} "path=$1,mode=0666"
+        DEV_IDX=$((DEV_IDX + 1))
+    }
+    if [ "$FLAVOR" = "nvidia" ]; then
+        echo "==> adding /dev/nvidia* passthrough"
+        for node in /dev/nvidia[0-9]* /dev/nvidiactl /dev/nvidia-uvm /dev/nvidia-uvm-tools \
+                    /dev/nvidia-modeset /dev/nvidia-caps/nvidia-cap1 /dev/nvidia-caps/nvidia-cap2; do
+            if [ -e "$node" ]; then add_dev "$node"; fi
+        done
+    else
+        echo "==> adding /dev/dri passthrough"
+        add_dev /dev/dri/renderD128
+        if [ -e /dev/dri/card0 ]; then add_dev /dev/dri/card0; fi
     fi
 fi
 
@@ -146,8 +187,81 @@ apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 systemctl enable --now docker
 '
 
+# --- NVIDIA (EXPERIMENTAL): user space + container toolkit + boot-time sync ---
+# The sync script derives the required version from /sys/module/nvidia/version
+# (sysfs comes from the host kernel), so it self-heals after host driver
+# updates as long as the matching installer exists on download.nvidia.com.
+if [ "$FLAVOR" = "nvidia" ]; then
+    echo "==> installing NVIDIA user space ${NVIDIA_DRIVER_VERSION} + container toolkit"
+    pct exec "$CTID" -- bash -lc '
+set -e
+export DEBIAN_FRONTEND=noninteractive
+
+cat > /usr/local/sbin/cameraui-nvidia-sync <<"SYNC"
+#!/usr/bin/env bash
+set -euo pipefail
+host_ver="$(cat /sys/module/nvidia/version 2>/dev/null || true)"
+if [ -z "$host_ver" ]; then
+    echo "cameraui-nvidia-sync: no nvidia kernel module loaded on the host, nothing to do"
+    exit 0
+fi
+# nvidia-smi succeeding means user space and host module already match
+if command -v nvidia-smi >/dev/null && nvidia-smi >/dev/null 2>&1; then
+    exit 0
+fi
+echo "cameraui-nvidia-sync: installing NVIDIA user space ${host_ver} (matching the host)"
+tmp="$(mktemp -d)"
+trap "rm -rf $tmp" EXIT
+curl -fsSLo "$tmp/nvidia.run" "https://download.nvidia.com/XFree86/Linux-x86_64/${host_ver}/NVIDIA-Linux-x86_64-${host_ver}.run"
+sh "$tmp/nvidia.run" --silent --no-kernel-module
+SYNC
+chmod +x /usr/local/sbin/cameraui-nvidia-sync
+
+cat > /etc/systemd/system/cameraui-nvidia-sync.service <<"UNIT"
+[Unit]
+Description=Match the NVIDIA user space to the host driver version
+Before=docker.service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cameraui-nvidia-sync
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable cameraui-nvidia-sync.service
+/usr/local/sbin/cameraui-nvidia-sync
+
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey -o /etc/apt/keyrings/nvidia-container-toolkit.asc
+curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
+    | sed "s#deb https://#deb [signed-by=/etc/apt/keyrings/nvidia-container-toolkit.asc] https://#g" \
+    > /etc/apt/sources.list.d/nvidia-container-toolkit.list
+apt-get update
+apt-get install -y --no-install-recommends nvidia-container-toolkit
+nvidia-ctk runtime configure --runtime=docker
+# an unprivileged LXC cannot manage device cgroups — the toolkit must not try
+nvidia-ctk config --set nvidia-container-cli.no-cgroups=true --output /etc/nvidia-container-runtime/config.toml
+systemctl restart docker
+nvidia-smi -L
+'
+fi
+
 echo "==> deploying camera.ui (${FLAVOR})"
 TAG="$([ "$FLAVOR" = cpu ] && echo latest || echo "$FLAVOR")"
+GPU_ENV=""
+GPU_YAML=""
+if [ "$GPU_PASSTHROUGH" = "1" ]; then
+    if [ "$FLAVOR" = "nvidia" ]; then
+        GPU_ENV=$'      - NVIDIA_VISIBLE_DEVICES=all\n      - NVIDIA_DRIVER_CAPABILITIES=all'
+        GPU_YAML=$'    deploy:\n      resources:\n        reservations:\n          devices:\n            - driver: nvidia\n              count: all\n              capabilities: [gpu, compute, video, utility]'
+    else
+        GPU_YAML=$'    devices:\n      - /dev/dri:/dev/dri'
+    fi
+fi
 pct exec "$CTID" -- bash -lc "
 set -e
 mkdir -p /opt/cameraui
@@ -162,9 +276,10 @@ services:
     environment:
       - TZ=${TZ}
       - CAMERAUI_DOCKER_AVAHI=true
+${GPU_ENV}
     volumes:
       - cameraui-data:/data
-$([ "$GPU_PASSTHROUGH" = 1 ] && printf '    devices:\n      - /dev/dri:/dev/dri\n')
+${GPU_YAML}
 volumes:
   cameraui-data:
 YML
@@ -174,6 +289,12 @@ cd /opt/cameraui && docker compose up -d
 IP="$(pct exec "$CTID" -- bash -lc "hostname -I | awk '{print \$1}'" || true)"
 echo ""
 echo "==> camera.ui is starting in LXC ${CTID}"
+if [ "$FLAVOR" = "nvidia" ]; then
+    echo ""
+    echo "    NVIDIA in an LXC is EXPERIMENTAL. After a host driver update the container"
+    echo "    re-syncs its user space at next boot (cameraui-nvidia-sync.service)."
+    echo "    Verify anytime with:  pct exec ${CTID} -- docker exec cameraui nvidia-smi"
+fi
 echo "    First boot downloads the server — give it a few minutes, then open:"
 echo "    https://${IP:-<container-ip>}:3443"
 echo ""
