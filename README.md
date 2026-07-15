@@ -45,6 +45,16 @@ Host networking (the compose default) is recommended — camera.ui uses it for m
 
 All state lives in the `/data` volume (config, database, recordings, TLS certs). Back up the `cameraui-data` volume.
 
+## Worker
+
+A second machine can join your camera.ui as a worker: it runs no UI of its own and takes over camera workloads (decoding, detection, recording) the master offloads to it. Generate a pairing code on the master (Workers view), fill it into [`docker-compose.worker.yml`](./docker-compose.worker.yml) together with the master's address, then:
+
+```bash
+docker compose -f docker-compose.worker.yml up -d
+```
+
+The code is only needed once, the worker stores its credentials and reconnects on its own. Hardware acceleration works the same as on the main deployment.
+
 ## Proxmox
 
 See [`proxmox/`](./proxmox) to run camera.ui in a Proxmox LXC.

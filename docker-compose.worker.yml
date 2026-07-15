@@ -1,0 +1,62 @@
+# =============================================================================
+# camera.ui — worker deployment
+#
+#   docker compose -f docker-compose.worker.yml up -d
+#
+# A worker runs no UI and no go2rtc of its own. It connects to a camera.ui
+# master and takes over camera workloads (decoding, detection, recording)
+# that the master offloads to it.
+#
+# Setup:
+#   1. On the master, open the Workers view and generate a pairing code.
+#   2. Fill in CAMERA_UI_WORKER_MASTER and CAMERA_UI_WORKER_PAIRING_CODE below.
+#   3. docker compose -f docker-compose.worker.yml up -d
+#
+# The pairing code is only needed once — the worker stores its credentials
+# and reconnects on its own afterwards.
+#
+# Hardware acceleration works the same as on the main deployment: layer an
+# overlay file on top and pass through the devices (see docker-compose.yml).
+# =============================================================================
+name: cameraui-worker
+
+services:
+  cameraui-worker:
+    image: ghcr.io/cameraui/camera.ui:latest
+    container_name: cameraui-worker
+    restart: unless-stopped
+    network_mode: host
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    environment:
+      - TZ=Europe/Berlin
+      # Worker mode instead of a full server.
+      - CAMERA_UI_WORKER=true
+      # Address of the camera.ui master (hostname or IP, no scheme).
+      - CAMERA_UI_WORKER_MASTER=192.168.1.10
+      # Pairing code generated on the master (Workers view).
+      - CAMERA_UI_WORKER_PAIRING_CODE=XXXX-XXXX
+      # Name shown for this worker on the master.
+      - CAMERA_UI_WORKER_NAME=worker-1
+      # The master's HTTPS port, only needed if it differs from the default.
+      # - CAMERA_UI_WORKER_API_PORT=3443
+      # A worker needs no mDNS of its own.
+      - CAMERAUI_DOCKER_AVAHI=false
+      # No plugins are auto-installed on a worker; the master pushes what it needs.
+      - CAMERA_UI_DEFAULT_PLUGINS=
+
+    volumes:
+      # Worker credentials, plugin runtimes and local recording buffers.
+      - cameraui-worker-data:/data
+
+    # Pass through hardware for decoding/AI, same as the main deployment:
+    # devices:
+    #   - /dev/dri:/dev/dri
+
+volumes:
+  cameraui-worker-data:
