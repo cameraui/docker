@@ -1,0 +1,10 @@
+{
+  "name": "@camera.ui/docker",
+  "version": "2.0.0",
+  "private": true,
+  "description": "camera.ui docker images",
+  "type": "module",
+  "scripts": {
+    "release": "bash scripts/release.sh"
+  }
+}
