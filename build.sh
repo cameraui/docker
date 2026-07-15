@@ -12,6 +12,8 @@
 #   TAG        tag for the cpu flavor (default: latest)
 #   PUSH       1 = multi-arch + push; otherwise single-arch + --load
 #   PLATFORMS  override platforms (e.g. linux/amd64)
+#   CAMERA_UI_VERSION  pin the launcher (adds :<ver> / :<flavor>-<ver> tags);
+#                      unset = launcher@latest with a cache bust
 #   NVIDIA_BASE / NODE_VERSION / S6_OVERLAY_VERSION  base overrides
 # =============================================================================
 set -euo pipefail
@@ -64,8 +66,10 @@ for flavor in "${flavors[@]}"; do
 
     if [ "$flavor" = "cpu" ]; then
         tags=(-t "${IMAGE}:${TAG}" -t "${IMAGE}:cpu")
+        [ -n "${CAMERA_UI_VERSION:-}" ] && tags+=(-t "${IMAGE}:${CAMERA_UI_VERSION}" -t "${IMAGE}:cpu-${CAMERA_UI_VERSION}")
     else
         tags=(-t "${IMAGE}:${flavor}")
+        [ -n "${CAMERA_UI_VERSION:-}" ] && tags+=(-t "${IMAGE}:${flavor}-${CAMERA_UI_VERSION}")
     fi
 
     platarg=()

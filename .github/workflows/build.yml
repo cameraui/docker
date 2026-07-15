@@ -66,14 +66,40 @@ jobs:
             echo "push=false" >> "$GITHUB_OUTPUT"
           fi
 
+      # A vX.Y.Z tag pins the launcher to X.Y.Z (reproducible image, natural
+      # layer cache invalidation). A trailing -<digits> is a docker-only
+      # revision: vX.Y.Z-2 still installs launcher X.Y.Z but tags the image
+      # X.Y.Z-2 (npm prereleases like X.Y.Z-beta.1 are left untouched).
+      # Manual runs use the input, default latest.
+      - name: Resolve launcher version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            RAW="${GITHUB_REF_NAME#v}"
+            VERSION="$RAW"
+            if [[ "$RAW" =~ ^(.+)-[0-9]+$ ]]; then
+              VERSION="${BASH_REMATCH[1]}"
+            fi
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "imagetag=$RAW" >> "$GITHUB_OUTPUT"
+          else
+            V="${{ inputs.launcher_version || 'latest' }}"
+            echo "version=$V" >> "$GITHUB_OUTPUT"
+            echo "imagetag=$V" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Compute tags
         id: tags
         run: |
+          V="${{ steps.version.outputs.imagetag }}"
           if [ "${{ matrix.flavor }}" = "cpu" ]; then
-            echo "tags=${IMAGE}:latest,${IMAGE}:cpu" >> "$GITHUB_OUTPUT"
+            tags="${IMAGE}:latest,${IMAGE}:cpu"
+            [ "$V" != "latest" ] && tags="$tags,${IMAGE}:${V},${IMAGE}:cpu-${V}"
           else
-            echo "tags=${IMAGE}:${{ matrix.flavor }}" >> "$GITHUB_OUTPUT"
+            tags="${IMAGE}:${{ matrix.flavor }}"
+            [ "$V" != "latest" ] && tags="$tags,${IMAGE}:${{ matrix.flavor }}-${V}"
           fi
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
 
       - name: Login to GHCR
         if: steps.mode.outputs.push == 'true'
@@ -92,8 +118,8 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ matrix.base }}
             FLAVOR=${{ matrix.flavor }}
-            CAMERA_UI_VERSION=${{ inputs.launcher_version || 'latest' }}
-            CAMERAUI_CACHE_BUST=${{ github.run_id }}-${{ github.run_attempt }}
+            CAMERA_UI_VERSION=${{ steps.version.outputs.version }}
+            CAMERAUI_CACHE_BUST=${{ steps.version.outputs.version == 'latest' && format('{0}-{1}', github.run_id, github.run_attempt) || '' }}
           tags: ${{ steps.tags.outputs.tags }}
           push: ${{ steps.mode.outputs.push }}
           provenance: ${{ steps.mode.outputs.push }}
