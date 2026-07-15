@@ -45,6 +45,9 @@ services:
       - CAMERA_UI_WORKER_NAME=worker-1
       # The master's HTTPS port, only needed if it differs from the default.
       # - CAMERA_UI_WORKER_API_PORT=3443
+      # What this worker takes on. Leave unset to offer everything (the master
+      # decides what to assign); set to restrict, e.g. only host plugins.
+      # - CAMERA_UI_WORKER_CAPABILITIES=frameDecoding,pluginHost
       # A worker needs no mDNS of its own.
       - CAMERAUI_DOCKER_AVAHI=false
       # No plugins are auto-installed on a worker; the master pushes what it needs.
