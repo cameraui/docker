@@ -5,7 +5,7 @@
 #   CT_HOSTNAME       container hostname      (default: cameraui)
 #   CORES             vCPUs                   (default: 4)
 #   RAM_MB            memory in MB            (default: 4096)
-#   DISK_GB           rootfs size in GB       (default: 16)
+#   DISK_GB           rootfs size in GB       (default: 32)
 #   BRIDGE            network bridge          (default: vmbr0)
 #   STORAGE           rootfs storage          (default: auto-detect)
 #   TEMPLATE_STORAGE  template store           (default: local)
@@ -19,7 +19,7 @@ CTID="${CTID:-$(pvesh get /cluster/nextid)}"
 CT_HOSTNAME="${CT_HOSTNAME:-cameraui}"
 CORES="${CORES:-4}"
 RAM_MB="${RAM_MB:-4096}"
-DISK_GB="${DISK_GB:-16}"
+DISK_GB="${DISK_GB:-32}"
 BRIDGE="${BRIDGE:-vmbr0}"
 STORAGE="${STORAGE:-}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"

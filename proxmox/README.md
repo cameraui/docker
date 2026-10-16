@@ -18,7 +18,7 @@ Env tunables (see the script header):
 |---|---|---|
 | `CTID` | next free ID | container ID |
 | `CT_HOSTNAME` | `cameraui` | container hostname |
-| `CORES` / `RAM_MB` / `DISK_GB` | `4` / `4096` / `16` | container resources |
+| `CORES` / `RAM_MB` / `DISK_GB` | `4` / `4096` / `32` | container resources |
 | `BRIDGE` | `vmbr0` | network bridge (IP via DHCP) |
 | `STORAGE` | auto-detect | rootfs storage (first active storage that can hold a container rootfs) |
 | `TEMPLATE_STORAGE` | `local` | where the LXC template is stored |
