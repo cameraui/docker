@@ -1,6 +1,6 @@
 #!/command/with-contenv bash
 if [[ "${CAMERAUI_DOCKER_AVAHI}" != "true" ]]; then
-    echo "[dbus] CAMERAUI_DOCKER_AVAHI != true — dbus disabled"
+    echo "[dbus] CAMERAUI_DOCKER_AVAHI != true, dbus disabled"
     exec sleep infinity
 fi
 echo "[dbus] starting system bus"

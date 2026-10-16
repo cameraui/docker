@@ -24,12 +24,12 @@ fi
 echo "[setup] accelerator devices:${hw}"
 
 if [[ "${CAMERAUI_DOCKER_AVAHI}" != "true" ]]; then
-    echo "[setup] CAMERAUI_DOCKER_AVAHI != true — not managing dbus/avahi"
+    echo "[setup] CAMERAUI_DOCKER_AVAHI != true, not managing dbus/avahi"
     exit 0
 fi
 
 if grep -qE " ((/var)?/run/dbus|(/var)?/run/avahi-daemon(/socket)?) " /proc/mounts; then
-    echo "[setup] host dbus/avahi sockets are bind-mounted — leaving them alone"
+    echo "[setup] host dbus/avahi sockets are bind-mounted, leaving them alone"
     exit 0
 fi
 

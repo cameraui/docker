@@ -35,7 +35,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
     # --- s6-overlay ---
     S6_KEEP_ENV=1 \
     S6_CMD_WAIT_FOR_SERVICES_MAXTIME=0 \
-    S6_BEHAVIOUR_IF_STAGE2_FAILS=2
+    S6_BEHAVIOUR_IF_STAGE2_FAILS=2 \
+    S6_KILL_GRACETIME=3000
 
 COPY scripts/ /opt/build/scripts/
 
@@ -75,8 +76,8 @@ ENV FLAVOR=${FLAVOR}
 # UI + go2rtc ports (informational; host networking recommended)
 EXPOSE 3443/tcp 2000/tcp 2001/tcp 2002/tcp 2003/tcp 2004/tcp 2004/udp
 
-# generous start-period — first boot installs the server
+# generous start-period, first boot installs the server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=5 \
-    CMD curl -fsSk https://localhost:3443/api/health >/dev/null || exit 1
+    CMD /etc/s6-overlay/scripts/healthcheck.sh
 
 ENTRYPOINT ["/init"]

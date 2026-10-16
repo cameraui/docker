@@ -1,6 +1,6 @@
 #!/command/with-contenv bash
 if [[ "${CAMERAUI_DOCKER_AVAHI}" != "true" ]]; then
-    echo "[avahi] CAMERAUI_DOCKER_AVAHI != true — avahi disabled"
+    echo "[avahi] CAMERAUI_DOCKER_AVAHI != true, avahi disabled"
     exec sleep infinity
 fi
 

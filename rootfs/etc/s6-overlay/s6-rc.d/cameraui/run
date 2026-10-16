@@ -1,5 +1,7 @@
 #!/command/with-contenv bash
-echo "[cameraui] starting (home: ${CAMERA_UI_HOME_PATH})"
+worker=""
+[[ "${CAMERA_UI_WORKER:-}" == "true" ]] && worker="--worker"
+echo "[cameraui] starting (home: ${CAMERA_UI_HOME_PATH}${worker:+, worker mode})"
 cd /root
 ulimit -c 0
-exec cameraui run --allow-root --docker -H "${CAMERA_UI_HOME_PATH}"
+exec cameraui run --allow-root --docker ${worker} -H "${CAMERA_UI_HOME_PATH}"
