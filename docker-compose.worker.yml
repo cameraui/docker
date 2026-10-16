@@ -28,6 +28,7 @@ services:
     image: ghcr.io/cameraui/camera.ui:latest
     container_name: cameraui-worker
     restart: unless-stopped
+    stop_grace_period: 30s
     network_mode: host
 
     logging:
