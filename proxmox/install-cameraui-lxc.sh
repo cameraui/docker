@@ -284,6 +284,7 @@ services:
     image: ${IMAGE}:${TAG}
     container_name: cameraui
     restart: unless-stopped
+    stop_grace_period: 30s
     network_mode: host
     environment:
       - TZ=${TZ}
