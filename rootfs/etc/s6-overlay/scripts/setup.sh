@@ -9,12 +9,31 @@ if command -v sysctl >/dev/null 2>&1; then
     sysctl -w net.core.rmem_max=5242880     >/dev/null 2>&1 || true
 fi
 
+is_blocked() {
+    local node="$1" n
+    if [[ -d "$node" ]]; then
+        for n in "$node"/renderD* "$node"/accel*; do
+            [[ -c "$n" ]] && { node="$n"; break; }
+        done
+    fi
+    [[ -c "$node" ]] && [[ "$( { : < "$node"; } 2>&1 )" == *"not permitted"* ]]
+}
+
 # Log which accelerator device nodes are visible inside the container — the
 # container-side half of the hw diagnosis (host side: scripts/host/cameraui-host.sh check).
-# A device missing here means it was not passed through via compose `devices:`.
+# A device missing here means it was not passed through via compose `devices:`,
+# a blocked one is visible but the device cgroup denies opening it.
 hw=""
+blocked=""
 for dev in /dev/dri /dev/kfd /dev/accel /dev/apex_0 /dev/hailo0 /dev/bus/usb; do
-    if [[ -e "$dev" ]]; then hw+=" ${dev} ✓ ·"; else hw+=" ${dev} ✗ ·"; fi
+    if [[ ! -e "$dev" ]]; then
+        hw+=" ${dev} ✗ ·"
+    elif is_blocked "$dev"; then
+        hw+=" ${dev} blocked ·"
+        blocked+=" ${dev}"
+    else
+        hw+=" ${dev} ✓ ·"
+    fi
 done
 if [[ -e /dev/nvidiactl ]] || command -v nvidia-smi >/dev/null 2>&1; then
     hw+=" nvidia ✓"
@@ -22,6 +41,9 @@ else
     hw+=" nvidia ✗"
 fi
 echo "[setup] accelerator devices:${hw}"
+if [[ -n "$blocked" ]]; then
+    echo "[setup] Docker blocks access to${blocked}. Pass devices under devices:, not volumes:. Docker Swarm services can't pass devices: https://docs.cameraui.com/admin/worker-setup#docker-swarm"
+fi
 
 if [[ "${CAMERAUI_DOCKER_AVAHI}" != "true" ]]; then
     echo "[setup] CAMERAUI_DOCKER_AVAHI != true, not managing dbus/avahi"

@@ -64,6 +64,9 @@ cmd_check() {
     head_ "Docker"
     if command -v docker >/dev/null 2>&1; then
         ok "docker installed ($(docker --version 2>/dev/null | sed 's/,.*//'))"
+        if [[ "$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null)" == "active" ]]; then
+            warn "Docker Swarm active: swarm services can't pass devices, run camera.ui as a plain container (docker compose)"
+        fi
     else
         miss "docker not installed" "https://docs.docker.com/engine/install/"
     fi
