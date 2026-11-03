@@ -3,3 +3,4 @@
 data/
 volume/
 docker-compose.override.yml
+.DS_Store
