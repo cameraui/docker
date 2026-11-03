@@ -16,7 +16,7 @@ ARG S6_OVERLAY_VERSION=3.2.1.0
 ARG TARGETARCH
 
 LABEL org.opencontainers.image.title="camera.ui" \
-      org.opencontainers.image.description="camera.ui — self-hosted NVR / camera management (flavor: ${FLAVOR})" \
+      org.opencontainers.image.description="camera.ui, the local-first camera and NVR platform (flavor: ${FLAVOR})" \
       org.opencontainers.image.authors="seydx" \
       org.opencontainers.image.source="https://github.com/cameraui/docker" \
       org.opencontainers.image.licenses="GPL-3.0"
