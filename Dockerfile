@@ -74,7 +74,7 @@ RUN find /etc/s6-overlay/s6-rc.d -type f \( -name run -o -name up \) -exec chmod
 ENV FLAVOR=${FLAVOR}
 
 # UI + go2rtc ports (informational; host networking recommended)
-EXPOSE 3443/tcp 2000/tcp 2001/tcp 2002/tcp 2003/tcp 2004/tcp 2004/udp
+EXPOSE 3443/tcp 2000/tcp 2001/tcp 2002/tcp 2003/tcp 2004/tcp 2004/udp 2005/tcp
 
 # generous start-period, first boot installs the server
 HEALTHCHECK --interval=30s --timeout=10s --start-period=240s --retries=5 \
