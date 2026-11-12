@@ -15,7 +15,7 @@
 set -euo pipefail
 
 DOCS_URL="https://github.com/cameraui/docs"
-HAILO_VERSION="4.21.0" # must match the hailort wheel pinned in the camera-ui-hailo plugin
+HAILO_VERSION="4.24.0" # must match the hailort wheel pinned in the camera-ui-hailo plugin
 # feranick's fork — Google's gasket-dkms no longer builds on kernels >= 6.13
 # (no_llseek removed, MODULE_IMPORT_NS signature change).
 GASKET_DKMS_VERSION="1.0-18.4"
@@ -105,7 +105,13 @@ cmd_check() {
 
     head_ "Hailo-8 / Hailo-8L"
     if lsmod 2>/dev/null | grep -q '^hailo_pci'; then
-        ok "hailo_pci kernel module loaded"
+        hailo_loaded="$(cat /sys/module/hailo_pci/version 2>/dev/null)"
+        # HailoRT refuses a driver of another version
+        if [ "${hailo_loaded}" = "${HAILO_VERSION}" ]; then
+            ok "hailo_pci kernel module loaded (v${hailo_loaded})"
+        else
+            miss "hailo_pci v${hailo_loaded:-unknown} loaded, the Hailo plugin needs v${HAILO_VERSION}" "run: sudo $0 hailo, then reboot"
+        fi
     elif lspci 2>/dev/null | grep -qi hailo; then
         miss "Hailo device on PCIe but hailo_pci module not loaded" "run: sudo $0 hailo"
     else
