@@ -5,6 +5,12 @@
   "description": "camera.ui docker images",
   "type": "module",
   "scripts": {
-    "release": "bash scripts/release.sh"
+    "release": "bash scripts/release.sh",
+    "update": "updates -M npm,pypi,go,cargo,docker -u",
+    "install-updates": "npm i --save",
+    "audit": "npm audit fix --min-release-age=0"
+  },
+  "devDependencies": {
+    "updates": "^20.0.1"
   }
 }
