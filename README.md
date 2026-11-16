@@ -69,6 +69,6 @@ See [`proxmox/`](./proxmox) to run camera.ui in a Proxmox LXC.
 | 2000 | tcp     | go2rtc                   |
 | 2001 | tcp     | RTSP                     |
 | 2002 | tcp     | SRTP                     |
-| 2003 | tcp     | RTMP                     |
+| 2003 | tcp     | RTMP, only if turned on  |
 | 2004 | tcp/udp | WebRTC                   |
 | 2005 | tcp     | ONVIF, only if turned on |
