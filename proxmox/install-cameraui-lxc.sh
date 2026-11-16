@@ -12,6 +12,7 @@
 #   FLAVOR            cpu|intel|amd|nvidia    (default: cpu; nvidia is EXPERIMENTAL)
 #   IMAGE             image repo              (default: ghcr.io/cameraui/camera.ui)
 #   GPU_PASSTHROUGH   1 to pass GPU devices   (default: 1 when FLAVOR!=cpu)
+#   ACCEL_PASSTHROUGH 1 to pass the Coral/Hailo nodes found on the host (default: 1)
 #   TZ                container timezone      (default: the host's timezone)
 set -euo pipefail
 
@@ -26,6 +27,7 @@ TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 FLAVOR="${FLAVOR:-cpu}"
 IMAGE="${IMAGE:-ghcr.io/cameraui/camera.ui}"
 GPU_PASSTHROUGH="${GPU_PASSTHROUGH:-$([ "$FLAVOR" = cpu ] && echo 0 || echo 1)}"
+ACCEL_PASSTHROUGH="${ACCEL_PASSTHROUGH:-1}"
 TZ="${TZ:-$(cat /etc/timezone 2>/dev/null || echo UTC)}"
 
 command -v pct >/dev/null || { echo "This script must run on a Proxmox VE host." >&2; exit 1; }
@@ -79,6 +81,14 @@ if [ "$GPU_PASSTHROUGH" = "1" ]; then
         echo "i915/amdgpu), revert that first — or run with GPU_PASSTHROUGH=0." >&2
         exit 1
     fi
+fi
+
+# Coral and Hailo work with every flavor, so they don't depend on GPU_PASSTHROUGH
+ACCEL_NODES=()
+if [ "$ACCEL_PASSTHROUGH" = "1" ]; then
+    for node in /dev/apex_[0-9]* /dev/hailo[0-9]*; do
+        if [ -e "$node" ]; then ACCEL_NODES+=("$node"); fi
+    done
 fi
 
 # --- resolve a rootfs-capable storage ----------------------------------------
@@ -140,13 +150,13 @@ pct create "$CTID" "${TEMPLATE_STORAGE}:vztmpl/${TEMPLATE}" \
 # containers (PVE >= 8.2). Intel/AMD: renderD128 covers VA-API and OpenCL,
 # card0 goes along for software that falls back to the card node. NVIDIA:
 # every /dev/nvidia* node incl. the caps nodes newer drivers require.
-HAS_ACCEL=0
+HAS_NPU=0
+DEV_IDX=0
+add_dev() {
+    pct set "$CTID" --dev${DEV_IDX} "path=$1,mode=0666"
+    DEV_IDX=$((DEV_IDX + 1))
+}
 if [ "$GPU_PASSTHROUGH" = "1" ]; then
-    DEV_IDX=0
-    add_dev() {
-        pct set "$CTID" --dev${DEV_IDX} "path=$1,mode=0666"
-        DEV_IDX=$((DEV_IDX + 1))
-    }
     if [ "$FLAVOR" = "nvidia" ]; then
         echo "==> adding /dev/nvidia* passthrough"
         for node in /dev/nvidia[0-9]* /dev/nvidiactl /dev/nvidia-uvm /dev/nvidia-uvm-tools \
@@ -162,11 +172,15 @@ if [ "$GPU_PASSTHROUGH" = "1" ]; then
             if [ -e "$node" ]; then
                 echo "==> adding ${node} passthrough (NPU)"
                 add_dev "$node"
-                HAS_ACCEL=1
+                HAS_NPU=1
             fi
         done
     fi
 fi
+for node in "${ACCEL_NODES[@]}"; do
+    echo "==> adding ${node} passthrough"
+    add_dev "$node"
+done
 
 pct start "$CTID"
 echo "==> waiting for network..."
@@ -263,16 +277,21 @@ echo "==> deploying camera.ui (${FLAVOR})"
 TAG="$([ "$FLAVOR" = cpu ] && echo latest || echo "$FLAVOR")"
 GPU_ENV=""
 GPU_YAML=""
+DEVICES=()
 if [ "$GPU_PASSTHROUGH" = "1" ]; then
     if [ "$FLAVOR" = "nvidia" ]; then
         GPU_ENV=$'      - NVIDIA_VISIBLE_DEVICES=all\n      - NVIDIA_DRIVER_CAPABILITIES=all'
         GPU_YAML=$'    deploy:\n      resources:\n        reservations:\n          devices:\n            - driver: nvidia\n              count: all\n              capabilities: [gpu, compute, video, utility]'
     else
-        GPU_YAML=$'    devices:\n      - /dev/dri:/dev/dri'
-        if [ "$HAS_ACCEL" = "1" ]; then
-            GPU_YAML="${GPU_YAML}"$'\n      - /dev/accel:/dev/accel'
-        fi
+        DEVICES+=(/dev/dri)
+        if [ "$HAS_NPU" = "1" ]; then DEVICES+=(/dev/accel); fi
     fi
+fi
+DEVICES+=("${ACCEL_NODES[@]}")
+DEVICES_YAML=""
+if [ "${#DEVICES[@]}" -gt 0 ]; then
+    DEVICES_YAML="    devices:"
+    for node in "${DEVICES[@]}"; do DEVICES_YAML+=$'\n'"      - ${node}:${node}"; done
 fi
 pct exec "$CTID" -- bash -lc "
 set -e
@@ -293,6 +312,7 @@ ${GPU_ENV}
     volumes:
       - cameraui-data:/data
 ${GPU_YAML}
+${DEVICES_YAML}
 volumes:
   cameraui-data:
 YML
