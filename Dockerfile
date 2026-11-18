@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.28
+# syntax=docker/dockerfile:1.29
 # camera.ui — one Dockerfile, six flavors (build-args FLAVOR + BASE_IMAGE):
 #   cpu     ubuntu:24.04                                    (amd64, arm64)
 #   intel   ubuntu:24.04                                    (amd64)
