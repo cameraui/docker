@@ -1,6 +1,6 @@
-# camera.ui — Docker
+# camera.ui - Docker
 
-Docker images for [camera.ui](https://github.com/cameraui/camera.ui), one per hardware target, on Ubuntu 24.04.
+Docker images for [camera.ui](https://github.com/cameraui/camera.ui), one per hardware target, on Ubuntu 24.04. Full guide: [docs.cameraui.com/install/docker](https://docs.cameraui.com/install/docker)
 
 ## Quick start
 
@@ -9,7 +9,7 @@ docker compose up -d
 # then open https://<host>:3443   (self-signed cert on first start)
 ```
 
-First boot installs the server and comes up after a few minutes — follow it with `docker compose logs -f`.
+First boot installs the server and comes up after a few minutes. Follow it with `docker compose logs -f`.
 
 ## Image flavors
 
@@ -26,7 +26,7 @@ Pick the flavor for your machine via its compose override (`docker-compose.{inte
 
 ## Hardware acceleration & AI accelerators
 
-AI accelerators (Coral, Hailo, Intel NPU) work with **any** flavor — they only need their device node passed through (see the commented `devices:` section in `docker-compose.yml`) plus a host driver.
+AI accelerators (Coral, Hailo, Intel NPU) work with **any** flavor. They only need their device node passed through (see the commented `devices:` section in `docker-compose.yml`) plus a host driver.
 
 To check what your host is missing (NVIDIA Container Toolkit, Hailo kernel driver, device nodes):
 
@@ -37,11 +37,11 @@ sudo ./scripts/host/cameraui-host.sh hailo     # build + install the Hailo PCIe 
 sudo ./scripts/host/cameraui-host.sh coral     # install the gasket driver (PCIe/M.2 Coral)
 ```
 
-On boot the container logs which devices actually arrived: `[setup] accelerator devices: ...` — if a device shows `✗` there but exists on the host, it is missing from your compose `devices:` list.
+On boot the container logs which devices actually arrived: `[setup] accelerator devices: ...`. If a device shows `✗` there but exists on the host, it is missing from your compose `devices:` list.
 
 ## Networking
 
-Host networking (the compose default) is recommended — camera.ui uses it for mDNS/Bonjour (HomeKit pairing, ONVIF discovery) and WebRTC live view.
+Host networking (the compose default) is recommended: camera.ui uses it for mDNS/Bonjour (HomeKit pairing, ONVIF discovery) and WebRTC live view.
 
 ## Data
 
@@ -72,3 +72,7 @@ See [`proxmox/`](./proxmox) to run camera.ui in a Proxmox LXC.
 | 2003 | tcp     | RTMP, only if turned on  |
 | 2004 | tcp/udp | WebRTC                   |
 | 2005 | tcp     | ONVIF, only if turned on |
+
+---
+
+_Part of camera.ui, the local-first camera and NVR platform._

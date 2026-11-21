@@ -2,7 +2,7 @@
 
 Two ways to run camera.ui on Proxmox VE. Full guide: [docs.cameraui.com/install/proxmox](https://docs.cameraui.com/install/proxmox)
 
-## Docker inside an LXC (recommended — reuses this image)
+## Docker inside an LXC (recommended, reuses this image)
 
 Run the helper **on the Proxmox host**:
 
@@ -22,15 +22,15 @@ Env tunables (see the script header):
 | `BRIDGE` | `vmbr0` | network bridge (IP via DHCP) |
 | `STORAGE` | auto-detect | rootfs storage (first active storage that can hold a container rootfs) |
 | `TEMPLATE_STORAGE` | `local` | where the LXC template is stored |
-| `FLAVOR` | `cpu` | `cpu`, `intel`, `amd` or `nvidia` (experimental) — picks the image flavor |
+| `FLAVOR` | `cpu` | image flavor: `cpu`, `intel`, `amd` or `nvidia` (experimental) |
 | `IMAGE` | `ghcr.io/cameraui/camera.ui` | image repo |
 | `GPU_PASSTHROUGH` | `1` when flavor ≠ cpu | pass `/dev/dri` (and `/dev/accel` if present) into the container |
 | `ACCEL_PASSTHROUGH` | `1` | pass the Coral (`/dev/apex_*`) and Hailo (`/dev/hailo*`) nodes found on the host, with any flavor |
 | `TZ` | host timezone | container timezone |
 
-- GPU passthrough (`/dev/dri`, Intel/AMD VA-API) works in the unprivileged container via Proxmox device passthrough — no privileged mode needed. If the host has an Intel NPU (`/dev/accel/accel0`, Core Ultra), it is passed through as well and mapped into the Docker container for OpenVINO NPU inference.
+- GPU passthrough (`/dev/dri`, Intel/AMD VA-API) works in the unprivileged container via Proxmox device passthrough, no privileged mode needed. If the host has an Intel NPU (`/dev/accel/accel0`, Core Ultra), it is passed through as well and mapped into the Docker container for OpenVINO NPU inference.
 - Coral and Hailo need their host driver before the script runs (`scripts/host/cameraui-host.sh coral` or `hailo`). The nodes it finds are passed through with any flavor, `ACCEL_PASSTHROUGH=0` turns that off.
-- **NVIDIA in an LXC is experimental** (`FLAVOR=nvidia`): requires a working host driver (`.run --dkms` + `pve-headers`, `nvidia-smi` must work). The script passes the `/dev/nvidia*` nodes through, installs the matching user-space driver + NVIDIA Container Toolkit (`no-cgroups=true`) inside the container, and adds a boot-time sync service that re-installs the matching user space after host driver updates. The recommended path is still a VM with PCIe passthrough — see the [docs](https://docs.cameraui.com/install/proxmox). Reports and PRs welcome.
+- **NVIDIA in an LXC is experimental** (`FLAVOR=nvidia`): requires a working host driver (`.run --dkms` + `pve-headers`, `nvidia-smi` must work). The script passes the `/dev/nvidia*` nodes through, installs the matching user-space driver + NVIDIA Container Toolkit (`no-cgroups=true`) inside the container, and adds a boot-time sync service that re-installs the matching user space after host driver updates. The recommended path is still a VM with PCIe passthrough, see the [docs](https://docs.cameraui.com/install/proxmox). Reports and PRs welcome.
 - mDNS/avahi and WebRTC need the LXC on a **bridged** network (default `vmbr0`), not NAT.
 
 ## Bare-metal inside an LXC (no Docker)
